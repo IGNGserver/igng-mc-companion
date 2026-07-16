@@ -1,0 +1,25 @@
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+
+# Local release signing material. Never commit these files.
+**/keystore/
+**/*.jks
+**/*.keystore
+**/keystore.properties
+
+# Local tools, logs, screenshots, and temporary exports
+tmp/
+*.log
+*.out
+captures/
+screenshots/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+*.swp
+

@@ -1,0 +1,15 @@
+name: Privacy check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  privacy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check repository for private material
+        shell: pwsh
+        run: ./scripts/check-privacy.ps1
+
