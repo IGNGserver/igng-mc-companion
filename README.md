@@ -1,41 +1,44 @@
 # IGNG MC Companion
 
-IGNG MC Companion 是 IGNG 的 Android 客户端，提供 Minecraft 服务器状态监控和账户工单管理。
+IGNG MC Companion 是一款面向 IGNG 用户的 Android 应用。
 
-## 功能
+无论你是在查看服务器状态，还是跟进一张工单，都可以在手机上快速完成。
 
-- 查看服务器在线状态、TPS、MSPT、CPU、内存、在线人数和网络延迟
-- 查看服务器性能历史趋势
-- 使用 IGNG 账户登录
-- 查看、创建和处理与自己相关的工单
-- 支持多账户、主题切换和可选触感反馈
+## 你可以用它做什么
 
-## 构建
+- 一眼查看 IGNG Minecraft 服务器是否在线
+- 查看 TPS、延迟、在线人数、CPU 和内存等实时信息
+- 回顾服务器最近一段时间的运行状态
+- 登录自己的 IGNG 账号
+- 查看自己发起或收到的工单
+- 创建工单、查看回复，并在有权限时继续处理
+- 在多个账号之间切换，并按自己的习惯调整主题和触感反馈
 
-需要 Android SDK、JDK 11 或更高版本，以及项目自带的 Gradle Wrapper。
+## 下载
 
-```powershell
-cd android
-.\gradlew.bat assembleDebug
-```
+前往 [Releases](https://github.com/IGNGserver/igng-mc-companion/releases) 下载最新版本。
 
-可通过 Gradle 属性覆盖服务地址：
+当前版本：[v1.0.0](https://github.com/IGNGserver/igng-mc-companion/releases/tag/v1.0.0)
 
-```powershell
-.\gradlew.bat assembleRelease -PMC_STATUS_BASE_URL=https://your-host -PIGNG_SSO_BASE_URL=https://your-sso-host
-```
+应用支持 Android 8.0 及以上版本。
 
-## 隐私与安全
+## 开始使用
 
-项目不会提交 `local.properties`、构建产物、临时截图、日志、签名密钥或密码文件。提交前请运行：
+1. 安装应用并打开。
+2. 在“设置”中登录你的 IGNG 账号。
+3. 在“状态”页面查看服务器运行情况。
+4. 登录后打开“工单”，查看或提交工单。
 
-```powershell
-.\scripts\check-privacy.ps1
-```
+应用只会连接 IGNG 服务来获取服务器状态和处理工单，不会要求你提供 Minecraft 服务器密码。
 
-账户会话令牌仅保存在 Android Keystore 加密的数据存储中。请不要在 issue、日志或提交中公开账号凭据、会话令牌或签名材料。
+## 隐私
 
-## 许可证
+登录信息和会话凭据保存在你的设备中，并使用 Android 系统提供的安全存储保护。
+请不要在公开 issue 或截图中分享密码、验证码和登录凭据。
 
-本项目使用 MIT License，详见 [LICENSE](LICENSE)。
+## 开源许可
+
+本项目以 MIT License 开源，详见 [LICENSE](LICENSE)。
+
+开发和贡献说明请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
