@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+
+git diff --cached --check
+
+if command -v pwsh >/dev/null 2>&1; then
+    pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check-privacy.ps1
+else
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check-privacy.ps1
+fi

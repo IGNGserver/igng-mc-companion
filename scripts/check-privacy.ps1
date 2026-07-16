@@ -1,23 +1,33 @@
 $ErrorActionPreference = "Stop"
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot ".." )).Path
-$ignored = @(".git", ".gradle", "build", "tmp", "keystore")
-$secretPattern = '(?i)(github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9_]{20,}|AIza[0-9A-Za-z_-]{20,}|BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|(?:password|secret|api[_-]?key|token)\s*[:=]\s*["''][^"'']{8,}["''])'
+$secretPattern = '(?i)(github_pat_[A-Za-z0-9_]{20,}|ghp_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|(?:password|passwd|secret|api[_-]?key|access[_-]?token|private[_-]?key)\s*[:=]\s*["''][^"'']{8,}["''])'
 $badNames = @("local.properties", "keystore.properties")
 $badExtensions = @(".jks", ".keystore", ".p12", ".pfx")
 
-$gitFiles = git -C $root ls-files -co --exclude-standard
-$files = @($gitFiles | ForEach-Object { Join-Path $root $_ } | ForEach-Object { Get-Item -LiteralPath $_ -Force -ErrorAction SilentlyContinue })
+$stagedFiles = @(git -C $root diff --cached --name-only --diff-filter=ACMRT)
+$scanIndex = $stagedFiles.Count -gt 0
+$relativeFiles = if ($scanIndex) { $stagedFiles } else { @(git -C $root ls-files -co --exclude-standard) }
+$binaryExtensions = @('.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.apk', '.jar', '.class', '.bin', '.jks', '.keystore')
 
 $violations = @()
-foreach ($file in $files) {
-    if ($badNames -contains $file.Name -or $badExtensions -contains $file.Extension.ToLowerInvariant()) {
-        $violations += "forbidden file: $($file.FullName)"
+foreach ($relativePath in $relativeFiles) {
+    $file = Get-Item -LiteralPath (Join-Path $root $relativePath) -Force -ErrorAction SilentlyContinue
+    $fileName = Split-Path -Leaf $relativePath
+    $extension = [IO.Path]::GetExtension($relativePath).ToLowerInvariant()
+    if ($badNames -contains $fileName -or $badExtensions -contains $extension) {
+        $violations += "forbidden file: $relativePath"
         continue
     }
-    if ($file.Length -lt 5MB -and $file.Extension -notin @('.png', '.jpg', '.jpeg', '.gif', '.webp')) {
-        $content = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue
-        if ($content -match $secretPattern) { $violations += "secret-like content: $($file.FullName)" }
+    if ($extension -notin $binaryExtensions) {
+        if ($scanIndex) {
+            $content = git -C $root show --no-ext-diff --textconv ":$relativePath" 2>$null | Out-String
+        } elseif ($file -and $file.Length -lt 5MB) {
+            $content = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction SilentlyContinue
+        } else {
+            $content = ''
+        }
+        if ($content -match $secretPattern) { $violations += "secret-like content: $relativePath" }
     }
 }
 
@@ -26,4 +36,5 @@ if ($violations.Count -gt 0) {
     exit 1
 }
 
-Write-Host "Privacy check passed: $($files.Count) files checked."
+$scope = if ($scanIndex) { 'staged files' } else { 'working tree files' }
+Write-Host "Privacy check passed: $($relativeFiles.Count) $scope checked."
