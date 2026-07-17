@@ -1,4 +1,4 @@
-# IGNG MC Status Android
+# IGNGmc Android
 
 Jetpack Compose + Kotlin + Material 3 实现的 IGNG MC 服务器状态客户端。
 

@@ -1,6 +1,6 @@
-# IGNG MC Companion
+# IGNGmc
 
-IGNG MC Companion 是一款面向 IGNG 用户的 Android 应用。
+IGNGmc 是一款面向 IGNG 用户的 Android 应用。
 
 无论你是在查看服务器状态，还是跟进一张工单，都可以在手机上快速完成。
 
@@ -41,4 +41,3 @@ IGNG MC Companion 是一款面向 IGNG 用户的 Android 应用。
 本项目以 MIT License 开源，详见 [LICENSE](LICENSE)。
 
 开发和贡献说明请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
