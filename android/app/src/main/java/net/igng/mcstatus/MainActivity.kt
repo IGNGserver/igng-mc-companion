@@ -10,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.igng.mcstatus.data.StatusRepository
 import net.igng.mcstatus.data.SettingsRepository
 import net.igng.mcstatus.data.TicketRepository
+import net.igng.mcstatus.data.ChatRepository
 import net.igng.mcstatus.ui.StatusApp
 import net.igng.mcstatus.ui.SettingsViewModel
 import net.igng.mcstatus.ui.SettingsViewModelFactory
@@ -23,6 +24,7 @@ class MainActivity : ComponentActivity() {
         val repository = StatusRepository(baseUrl = BuildConfig.MC_STATUS_BASE_URL)
         val settingsRepository = SettingsRepository(this)
         val ticketRepository = TicketRepository(BuildConfig.MC_STATUS_BASE_URL, BuildConfig.IGNG_SSO_BASE_URL)
+        val chatRepository = ChatRepository(BuildConfig.MC_STATUS_BASE_URL)
 
         setContent {
             val settingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel<SettingsViewModel>(
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
                 StatusApp(
                     repository = repository,
                     ticketRepository = ticketRepository,
+                    chatRepository = chatRepository,
                     settings = settings,
                     onSetVibrationEnabled = settingsViewModel::setVibrationEnabled,
                     onSetUseSystemAccent = settingsViewModel::setUseSystemAccent,

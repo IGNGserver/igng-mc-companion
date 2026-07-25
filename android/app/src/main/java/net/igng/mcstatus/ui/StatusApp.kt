@@ -46,6 +46,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Article
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -118,6 +119,7 @@ import net.igng.mcstatus.data.ServerCardState
 import net.igng.mcstatus.data.StatusRepository
 import net.igng.mcstatus.data.ThemeAccent
 import net.igng.mcstatus.data.TicketRepository
+import net.igng.mcstatus.data.ChatRepository
 import net.igng.mcstatus.data.SavedAccount
 import net.igng.mcstatus.data.toDisplayTime
 
@@ -125,6 +127,7 @@ import net.igng.mcstatus.data.toDisplayTime
 fun StatusApp(
     repository: StatusRepository,
     ticketRepository: TicketRepository,
+    chatRepository: ChatRepository,
     settings: AppSettings,
     onSetVibrationEnabled: (Boolean) -> Unit,
     onSetUseSystemAccent: (Boolean) -> Unit,
@@ -139,7 +142,8 @@ fun StatusApp(
     val destination by navController.currentBackStackEntryAsState()
     val route = destination?.destination?.route
     Scaffold(bottomBar = {
-        if (route == "overview" || route == "tickets") NavigationBar {
+        if (route == "overview" || route == "tickets" || route == "chatlogs") NavigationBar {
+            NavigationBarItem(selected = route == "chatlogs", onClick = { performAppHaptic(haptic, settings, AppHapticType.Tap); navController.navigate("chatlogs") { launchSingleTop = true } }, icon = { Icon(Icons.Rounded.Forum, null) }, label = { Text("聊天") })
             NavigationBarItem(selected = route == "overview", onClick = { performAppHaptic(haptic, settings, AppHapticType.Tap); navController.navigate("overview") { launchSingleTop = true } }, icon = { Icon(Icons.Rounded.Home, null) }, label = { Text("状态") })
             NavigationBarItem(selected = route == "tickets", onClick = { performAppHaptic(haptic, settings, AppHapticType.Tap); navController.navigate("tickets") { launchSingleTop = true } }, icon = { Icon(Icons.Rounded.Article, null) }, label = { Text("工单") })
         }
@@ -208,6 +212,7 @@ fun StatusApp(
                 onSwitchAccount = onSwitchAccount,
             )
         }
+        composable("chatlogs") { ChatLogsScreen(chatRepository, settings) }
         composable("tickets") { TicketsScreen(ticketRepository, settings) }
     }
     }
