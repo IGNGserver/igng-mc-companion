@@ -26,10 +26,16 @@ class ChatRepository(
 
     suspend fun bootstrap(): ChatBootstrap = withContext(Dispatchers.IO) {
         val servers = runCatching { fetchServersFromStatus() }.getOrDefault(emptyList())
-        val qqGroups = runCatching { fetchQqGroupsFromPage() }.getOrDefault(emptyList())
+        val pagePayload = runCatching { chatlogsPagePayload() }.getOrDefault("")
+        val qqGroups = if (pagePayload.isBlank()) {
+            emptyList()
+        } else {
+            runCatching { parseQqGroups(pagePayload) }.getOrDefault(emptyList())
+        }
         ChatBootstrap(
             servers = servers.ifEmpty {
-                runCatching { fetchServersFromPage() }.getOrDefault(emptyList())
+                if (pagePayload.isBlank()) emptyList()
+                else runCatching { parseServers(pagePayload) }.getOrDefault(emptyList())
             },
             qqGroups = qqGroups,
         )
@@ -101,20 +107,159 @@ class ChatRepository(
         }
     }
 
-    private fun fetchServersFromPage(): List<ChatServerOption> {
-        val payload = chatlogsPagePayload()
-        val match = Regex(""""servers"\s*:\s*(\[[\s\S]*?\])\s*,\s*"qqGroups"""").find(payload)
-            ?: return emptyList()
-        return json.decodeFromString(match.groupValues[1])
+    private fun parseServers(payload: String): List<ChatServerOption> {
+        val raw = extractJsonArray(payload, "servers") ?: return emptyList()
+        return json.decodeFromString(raw)
     }
 
-    private fun fetchQqGroupsFromPage(): List<ChatQqGroupOption> {
-        val payload = chatlogsPagePayload()
-        val match = Regex(""""qqGroups"\s*:\s*(\[[\s\S]*?\])\s*,\s*"initialMessageId"""").find(payload)
-            ?: return emptyList()
-        return json.decodeFromString(match.groupValues[1])
+    private fun parseQqGroups(payload: String): List<ChatQqGroupOption> {
+        val raw = extractJsonArray(payload, "qqGroups") ?: return emptyList()
+        return json.decodeFromString(raw)
     }
 
+    /**
+     * Chatlogs HTML is Next.js RSC. Fields may appear plain ("qqGroups":[...])
+     * or escaped inside flight payloads (\"qqGroups\":[...]).
+     */
+    private fun extractJsonArray(payload: String, key: String): String? {
+        val markers = listOf(
+            "\"$key\"" to false,
+            "\\\"$key\\\"" to true,
+        )
+        for ((marker, escapedQuotes) in markers) {
+            var searchFrom = 0
+            while (true) {
+                val keyIndex = payload.indexOf(marker, searchFrom)
+                if (keyIndex < 0) break
+                val colon = payload.indexOf(':', keyIndex + marker.length)
+                if (colon < 0) {
+                    searchFrom = keyIndex + marker.length
+                    continue
+                }
+                val bracket = payload.indexOf('[', colon)
+                // Require the array to start immediately after the colon (allow whitespace).
+                if (bracket < 0 || payload.substring(colon + 1, bracket).any { !it.isWhitespace() }) {
+                    searchFrom = keyIndex + marker.length
+                    continue
+                }
+                val raw = sliceBalancedArray(payload, bracket, escapedQuotes)
+                if (raw == null) {
+                    searchFrom = keyIndex + marker.length
+                    continue
+                }
+                val normalized = if (escapedQuotes) unescapeJsonFragment(raw) else raw
+                if (normalized.startsWith("[") && normalized.endsWith("]") && isJsonArray(normalized)) {
+                    return normalized
+                }
+                searchFrom = keyIndex + marker.length
+            }
+        }
+        return null
+    }
+
+    private fun isJsonArray(raw: String): Boolean =
+        runCatching {
+            val el = json.parseToJsonElement(raw)
+            el is kotlinx.serialization.json.JsonArray
+        }.getOrDefault(false)
+
+    private fun unescapeJsonFragment(raw: String): String {
+        // Only unescape when the fragment itself is RSC-escaped.
+        if (!raw.contains("\\\"")) return raw
+        return buildString(raw.length) {
+            var i = 0
+            while (i < raw.length) {
+                val ch = raw[i]
+                if (ch == '\\' && i + 1 < raw.length) {
+                    when (raw[i + 1]) {
+                        '"' -> { append('"'); i += 2 }
+                        '\\' -> { append('\\'); i += 2 }
+                        '/' -> { append('/'); i += 2 }
+                        'n' -> { append('\n'); i += 2 }
+                        'r' -> { append('\r'); i += 2 }
+                        't' -> { append('\t'); i += 2 }
+                        else -> { append(ch); i++ }
+                    }
+                } else {
+                    append(ch)
+                    i++
+                }
+            }
+        }
+    }
+
+    /**
+     * Slice a JSON array starting at [start].
+     * When [escapedQuotes] is true, string delimiters are the two-char sequence \"
+     * (RSC flight embedding); bare [ ] still form array structure.
+     */
+    private fun sliceBalancedArray(
+        payload: String,
+        start: Int,
+        escapedQuotes: Boolean = false,
+    ): String? {
+        if (start < 0 || start >= payload.length || payload[start] != '[') return null
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var i = start
+        while (i < payload.length) {
+            val ch = payload[i]
+            if (escapedQuotes) {
+                if (inString) {
+                    if (ch == '\\' && i + 1 < payload.length) {
+                        val next = payload[i + 1]
+                        // \" ends/toggles the RSC-escaped JSON string.
+                        if (next == '"') {
+                            inString = false
+                            i += 2
+                            continue
+                        }
+                        // \\ or \n / \t / \/ etc. inside the string.
+                        i += 2
+                        continue
+                    }
+                    i++
+                    continue
+                }
+                if (ch == '\\' && i + 1 < payload.length && payload[i + 1] == '"') {
+                    inString = true
+                    i += 2
+                    continue
+                }
+                when (ch) {
+                    '[' -> depth++
+                    ']' -> {
+                        depth--
+                        if (depth == 0) return payload.substring(start, i + 1)
+                    }
+                }
+                i++
+                continue
+            }
+
+            // Plain JSON string / array balancer.
+            if (inString) {
+                when {
+                    escaped -> escaped = false
+                    ch == '\\' -> escaped = true
+                    ch == '"' -> inString = false
+                }
+                i++
+                continue
+            }
+            when (ch) {
+                '"' -> inString = true
+                '[' -> depth++
+                ']' -> {
+                    depth--
+                    if (depth == 0) return payload.substring(start, i + 1)
+                }
+            }
+            i++
+        }
+        return null
+    }
     private fun chatlogsPagePayload(): String {
         val request = Request.Builder().url("$mcBaseUrl/chatlogs").get().build()
         client.newCall(request).execute().use { response ->
