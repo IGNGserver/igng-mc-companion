@@ -71,6 +71,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -420,7 +421,18 @@ class ChatLogsViewModel(
                 Instant.parse(text).toString()
             } else {
                 val local = LocalDateTime.parse(text, LOCAL_INPUT)
-                local.atZone(ZoneId.systemDefault()).toInstant().toString()
+                if (source == "qq") {
+                    // QQ created_at is compared as naive wall-clock text with a fake Z.
+                    // Convert the picked device-local time into Asia/Shanghai digits,
+                    // then label them Z so they line up with stored message_logs rows.
+                    val shanghaiWall = local
+                        .atZone(ZoneId.systemDefault())
+                        .withZoneSameInstant(CHAT_LOG_QQ_ZONE)
+                        .toLocalDateTime()
+                    shanghaiWall.format(CHAT_LOG_DATE_TIME) + "Z"
+                } else {
+                    local.atZone(ZoneId.systemDefault()).toInstant().toString()
+                }
             }
         }.getOrNull() ?: text
     }
@@ -1054,7 +1066,7 @@ private fun ChatMessageCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = message.sent_at.toDisplayTimeDetailed(),
+                    text = message.sent_at.toDisplayTimeDetailed(message.source),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1095,12 +1107,56 @@ private fun ChatMessageCard(
     }
 }
 
-private fun String.toDisplayTimeDetailed(): String = runCatching {
-    val instant = Instant.parse(this)
+/**
+ * Format chatlog timestamps for the device local zone.
+ *
+ * The MC site serializes MySQL DATETIME by appending "Z". Server chat_messages
+ * are real UTC. QQ message_logs values currently carry Asia/Shanghai wall-clock
+ * digits (naive local clock labeled as UTC via trailing Z), so treating QQ times
+ * as UTC makes China devices show times 8 hours late. Interpret QQ clock faces
+ * in Asia/Shanghai, then convert to the device zone.
+ */
+private fun String.toDisplayTimeDetailed(source: String? = null): String = runCatching {
+    val instant = parseChatLogInstant(this, source)
     DateTimeFormatter.ofPattern("yyyy/M/d HH:mm:ss")
         .withZone(ZoneId.systemDefault())
         .format(instant)
 }.getOrDefault(if (isBlank()) "时间未知" else this)
+
+private fun parseChatLogInstant(raw: String, source: String?): Instant {
+    val text = raw.trim()
+    require(text.isNotEmpty()) { "empty timestamp" }
+
+    // Honor explicit numeric offsets such as +08:00 / -05:00.
+    if (text.endsWith("Z", ignoreCase = true).not() &&
+        text.length >= 6 &&
+        (text[text.length - 6] == '+' || text[text.length - 6] == '-') &&
+        text[text.length - 3] == ':'
+    ) {
+        return Instant.parse(text)
+    }
+
+    val body = text
+        .removeSuffix("Z")
+        .removeSuffix("z")
+        .replace(' ', 'T')
+        .let { if (it.length > 19) it.substring(0, 19) else it }
+    val local = LocalDateTime.parse(body, CHAT_LOG_DATE_TIME)
+
+    // QQ: wall clock is Asia/Shanghai in production despite trailing Z.
+    // Server (and anything else): treat naive/Z values as true UTC.
+    val zone = if (source.equals("qq", ignoreCase = true)) {
+        CHAT_LOG_QQ_ZONE
+    } else {
+        ZoneOffset.UTC
+    }
+    return local.atZone(zone).toInstant()
+}
+
+private val CHAT_LOG_DATE_TIME: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
+
+private val CHAT_LOG_QQ_ZONE: ZoneId = ZoneId.of("Asia/Shanghai")
 
 private fun buzzChat(haptic: HapticFeedback, settings: AppSettings) {
     if (settings.vibrationEnabled) {
