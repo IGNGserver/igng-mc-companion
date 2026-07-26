@@ -19,7 +19,7 @@ IGNGmc 是一款面向 IGNG 用户的 Android 应用。
 
 前往 [Releases](https://github.com/IGNGserver/igng-mc-companion/releases) 下载最新版本。
 
-当前版本：[v1.0.3](https://github.com/IGNGserver/igng-mc-companion/releases/tag/v1.0.3)
+当前版本：[v1.0.4](https://github.com/IGNGserver/igng-mc-companion/releases/tag/v1.0.4)
 
 应用支持 Android 8.0 及以上版本。
 
